@@ -361,7 +361,8 @@ class MpiiPCKAccuracy(PCKAccuracy):
                 'Knee PCK': 0.5 * (PCKh[4] + PCKh[1]),
                 'Ankle PCK': 0.5 * (PCKh[5] + PCKh[0]),
                 'PCK': np.sum(PCKh * jnt_ratio),
-                'PCK@0.1': np.sum(pckAll[10, :] * jnt_ratio)
+                'PCK@0.1': np.sum(pckAll[10, :] * jnt_ratio),
+                'PCK-AUC': np.sum(np.trapezoid(pckAll, x=rng, axis=0) * jnt_ratio),
             }
 
             for stats_name, stat in stats.items():
