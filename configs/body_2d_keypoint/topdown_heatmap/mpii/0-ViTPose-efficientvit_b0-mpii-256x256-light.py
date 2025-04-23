@@ -44,7 +44,7 @@ model = dict(
         std=[58.395, 57.12, 57.375],
         bgr_to_rgb=True),
     backbone=dict(
-        type='EfficientViTBackbone',
+        type='EfficientViT',
         arch='b0',
         out_indices=(3, ),
     ),
