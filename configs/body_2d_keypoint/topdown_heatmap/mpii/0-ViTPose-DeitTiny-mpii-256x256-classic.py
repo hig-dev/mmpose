@@ -94,14 +94,14 @@ train_pipeline = [
     dict(type='RandomFlip', direction='horizontal'),
     dict(type='RandomHalfBody'),
     dict(type='RandomBBoxTransform'),
-    dict(type='TopdownAffine', input_size=codec['input_size'], use_udp=True),
+    dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
     dict(type='LoadImage'),
     dict(type='GetBBoxCenterScale'),
-    dict(type='TopdownAffine', input_size=codec['input_size'], use_udp=True),
+    dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
 ]
 
