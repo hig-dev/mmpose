@@ -51,9 +51,9 @@ model = dict(
         loss=dict(type='KeypointMSELoss', use_target_weight=True),
         decoder=codec),
     test_cfg=dict(
-        flip_test=True,
+        flip_test=False,
         flip_mode='heatmap',
-        shift_heatmap=True,
+        shift_heatmap=False,
     ))
 
 # base dataset settings
