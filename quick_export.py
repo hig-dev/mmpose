@@ -4,6 +4,7 @@
 import argparse
 import os.path as osp
 import os
+import json
 import numpy as np
 from mmcv.cnn.bricks.drop import DropPath
 import torch
@@ -17,11 +18,12 @@ from mmengine.runner import Runner
 from torch.utils.data import DataLoader
 from mmengine.model import revert_sync_batchnorm
 from generate_cc_arrays import generate
+from mmpose.structures.pose_data_sample import PoseDataSample
 
 onnx_opset = 20
 device = "cpu"
 
-def export(config_file: str):
+def export(config_file: str, export_data: bool = False):
     tf.config.set_visible_devices([], 'GPU')
 
     # load config
@@ -36,14 +38,17 @@ def export(config_file: str):
     
     cfg.load_from = osp.join(cfg.work_dir, best_pth) 
     cfg.train_dataloader.batch_size = 256
+    cfg.test_dataloader.batch_size = 1
 
     # build the runner from config
     runner = Runner.from_cfg(cfg)
+    runner.load_or_resume()
 
-    dataloader: DataLoader = runner.train_dataloader
+    train_dataloader: DataLoader = runner.train_dataloader
+    test_dataloader: DataLoader = runner.test_dataloader
 
     # get the first batch of data for calibration
-    sample_inputs = next(iter(dataloader))
+    sample_inputs = next(iter(train_dataloader))
     sample_inputs = runner.model.data_preprocessor(sample_inputs)
     calibration_data = sample_inputs['inputs']
     calibration_data = calibration_data.to(device)
@@ -69,6 +74,12 @@ def export(config_file: str):
     runner.call_hook("before_run")
     model = model.to(device)
     model.eval()
+
+    # Export test data
+    if export_data:
+        test_data_output_dir = osp.join('./work_dirs', f'mpii_test_data')
+        export_test_data(test_dataloader, runner.model.data_preprocessor, test_data_output_dir)
+        return
 
     # Export sample input
     sample_input_path_nchw = osp.join(cfg.work_dir, f'sample_input_nchw.npy')
@@ -120,6 +131,7 @@ def export_onnx(model, sample_input, output_path):
     onnx_model = onnx.load(output_path)
     onnx.checker.check_model(onnx_model)
     print(f"ONNX model exported to {output_path}")
+
 
 def export_tflite(model, calibration_data, output_path, quantize=False):
     sample_input = calibration_data[0]
@@ -180,6 +192,44 @@ def export_tflite_from_onnx(tf_saved_model_path, calibration_data, output_path, 
         f.write(tflite_model)
     
     print(f"TFLite model exported to {output_path}")
+
+def export_test_data(dataloader: DataLoader, data_preprocessor, output_dir: str):
+    os.makedirs(output_dir, exist_ok=True)
+    model_inputs = []
+    gt_keypoints = []
+    gt_keypoints_visible_mask = []
+    gt_head_sizes = []
+    meta_infos = []
+    for data in dataloader:
+        preprocessed_data = data_preprocessor(data)
+        model_input = preprocessed_data["inputs"]
+        data_sample: PoseDataSample = preprocessed_data["data_samples"][0]
+        meta_info = data_sample.metainfo
+        gt_instance = data_sample.gt_instances[0]
+        gt_keypoints_visible = gt_instance.keypoints_visible.astype(bool)
+        if gt_keypoints_visible.ndim == 3:
+            gt_keypoints_visible = gt_keypoints_visible[:, :, 0]
+        gt_keypoints_visible = gt_keypoints_visible.reshape(1, -1)
+        head_size_ = gt_instance["head_size"]
+        head_size = np.array([head_size_, head_size_]).reshape(-1, 2)
+        
+        model_inputs.append(model_input.numpy())
+        gt_keypoints.append(gt_instance.keypoints)
+        gt_keypoints_visible_mask.append(gt_keypoints_visible)
+        gt_head_sizes.append(head_size)
+        meta_infos.append(meta_info)
+    model_inputs_np = np.concatenate(model_inputs, axis=0)
+    gt_keypoints_np = np.concatenate(gt_keypoints, axis=0)
+    gt_keypoints_visible_mask_np = np.concatenate(gt_keypoints_visible_mask, axis=0)
+    gt_head_sizes_np = np.concatenate(gt_head_sizes, axis=0)
+    
+    np.save(osp.join(output_dir, 'model_inputs.npy'), model_inputs_np)
+    np.save(osp.join(output_dir, 'gt_keypoints.npy'), gt_keypoints_np)
+    np.save(osp.join(output_dir, 'gt_keypoints_visible_mask.npy'), gt_keypoints_visible_mask_np)
+    np.save(osp.join(output_dir, 'gt_head_sizes.npy'), gt_head_sizes_np)
+    with open(osp.join(output_dir, 'meta_infos.json'), 'w') as f:
+        json.dump(meta_infos, f, cls=NumpyEncoder)
+
     
 def export_cc_from_tflite(tflite_path: str, npy_paths: list[str], output_dir: str):
     inputs = [tflite_path] + npy_paths
@@ -187,9 +237,23 @@ def export_cc_from_tflite(tflite_path: str, npy_paths: list[str], output_dir: st
     generate(output_dir, inputs)
     print(f"CC files generated in {output_dir}")
     
+
+class NumpyEncoder(json.JSONEncoder):
+    """ Special json encoder for numpy types """
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Export a model')
     parser.add_argument('config', help='train config file path')
+    parser.add_argument('--export-data', action='store_true', help='Export test data')
 
     args = parser.parse_args()
-    export(args.config)
+    export(args.config, args.export_data)
