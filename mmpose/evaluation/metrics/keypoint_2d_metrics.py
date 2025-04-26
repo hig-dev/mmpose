@@ -299,6 +299,7 @@ class MpiiPCKAccuracy(PCKAccuracy):
                 - 'Ankle PCK': The PCK of ankle
                 - 'PCK': The mean PCK over all keypoints
                 - 'PCK@0.1': The mean PCK at threshold 0.1
+                - 'PCK-AUC': The area under the curve of PCK
         """
         logger: MMLogger = MMLogger.get_current_instance()
 
