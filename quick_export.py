@@ -58,22 +58,8 @@ def export(config_file: str, export_data: bool = False):
 
     # prepare model
     model = runner.model
-    model.forward = model._forward
-    model = revert_sync_batchnorm(model)
-    if hasattr(model, 'backbone') and hasattr(model.backbone, 'switch_to_deploy'):
-        model.backbone.switch_to_deploy()
-    
-    def identity_forward(x):
-        return x
-    
-    # replace DropPath forward method to avoid conditional path
-    for m in model.modules():
-        if isinstance(m, DropPath):
-            m.forward = identity_forward
-
-    runner.call_hook("before_run")
+    model = prepare_model_for_export(model)
     model = model.to(device)
-    model.eval()
 
     # Export test data
     if export_data:
@@ -109,6 +95,23 @@ def export(config_file: str, export_data: bool = False):
     cc_output_dir = osp.join(cfg.work_dir, f'{exp_name}_cc')
     export_cc_from_tflite(tflite_quantized_output_path, [sample_input_path_nchw], cc_output_dir)
     export_cc_from_tflite(tflite_from_onnx_quantized_output_path, [sample_input_path_nhwc], cc_output_dir)
+
+def prepare_model_for_export(model):
+    model.forward = model._forward
+    model = revert_sync_batchnorm(model)
+    if hasattr(model, 'backbone') and hasattr(model.backbone, 'switch_to_deploy'):
+        model.backbone.switch_to_deploy()
+    
+    def identity_forward(x):
+        return x
+    
+    # replace DropPath forward method to avoid conditional path
+    for m in model.modules():
+        if isinstance(m, DropPath):
+            m.forward = identity_forward
+
+    model.eval()
+    return model
 
 def export_sample_input(sample_input: np.array, output_path: str):
     if len(sample_input.shape) != 4:

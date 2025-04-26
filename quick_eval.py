@@ -1,10 +1,10 @@
 import argparse
 import os
+import json
 import os.path as osp
 
 from mmengine.config import Config
 from mmengine.runner import Runner
-from mmengine.analysis import get_model_complexity_info
 
 def eval(config_file: str):
     # load config
@@ -24,26 +24,19 @@ def eval(config_file: str):
     runner = Runner.from_cfg(cfg)
 
     # evaluate the model
-    runner.test()
-    
-    # analyse model complexity
-    input_shape = (3, cfg.codec.input_size[0], cfg.codec.input_size[1])
-    analyse_complexity(runner.model, input_shape)
-    
+    metrics = runner.test()
 
-def analyse_complexity(model, input_shape):
-    model.forward = model._forward
-    complexity_info = get_model_complexity_info(
-            model=model,
-            input_shape=input_shape,
-            inputs=None,
-            show_table=True,
-            show_arch=False)
+    eval_result = {
+        'model_name': exp_name,
+    }
+    eval_result.update(metrics)
     
-    print('Complexity Info:')
-    for key, value in complexity_info.items():
-        print(f'{key}: {value}')
+    with open(osp.join(cfg.work_dir, 'eval_result.json'), 'w') as f:
+        json.dump(eval_result, f, indent=4)
 
+    print(f'Evaluation result saved to {osp.join(cfg.work_dir, "eval_result.json")}')
+    
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Eval a model')

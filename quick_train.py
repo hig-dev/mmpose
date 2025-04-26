@@ -4,7 +4,7 @@ import os.path as osp
 from mmengine.config import Config
 from mmengine.runner import Runner
 
-from quick_eval import analyse_complexity
+from quick_analyze import analyse_complexity
 
 def train(config_file: str, resume: bool = False, quick: bool = False):
     # load config
