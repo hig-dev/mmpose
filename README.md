@@ -57,6 +57,26 @@
     <img src="https://user-images.githubusercontent.com/25839884/219026120-ba71e48b-6e94-4bd4-b4e9-b7d175b5e362.png" width="3%" alt="" /></a>
 </div>
 
+## Adapted version of MMPose for Master Thesis
+This fork of MMPose is used in the master thesis *Benchmarking Computer Vision Tasks on Edge AI Hardware* by Halil Göcer.
+
+### Changes
+- Added PCK-AUC metric
+- Added HeatmapHeadLight
+- Added EfficientVit backend
+- Added the configs used in the master thesis
+- Added Python scripts for training and evaluation
+
+### Configs used in the master thesis
+Configs are located at `configs/body_2d_keypoint/topdown_heatmap/mpii` and begin with `0-`.
+
+### Added Python scripts
+- **quick_train.py**: Helper script for training
+- **quick_eval.py**: Helper script for evaluation
+- **quick_analyze.py**: Helper script for model complexity analysis and peak memory usage measurement
+- **quick_export.py**: Helper script for model conversion and export
+- **quick_util.py**: Helper script for utility functions
+
 ## Introduction
 
 English | [简体中文](README_CN.md)
@@ -315,11 +335,11 @@ We wish that the toolbox and benchmark could serve the growing research communit
 If you find this project useful in your research, please consider cite:
 
 ```bibtex
-@misc{mmpose2020,
-    title={OpenMMLab Pose Estimation Toolbox and Benchmark},
-    author={MMPose Contributors},
+@misc{mmpose2025,
+    title={OpenMMLab Pose Estimation Toolbox and Benchmark (Adapted)},
+    author={{MMPose Contributors} and Göcer, Halil},
     howpublished = {\url{https://github.com/open-mmlab/mmpose}},
-    year={2020}
+    year={2025}
 }
 ```
 
