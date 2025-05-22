@@ -26,6 +26,11 @@ import numpy as np
 
 from PIL import Image
 
+def export_cc_from_tflite(tflite_path: str, npy_paths: list[str], output_dir: str):
+    inputs = [tflite_path] + npy_paths
+    os.makedirs(output_dir, exist_ok=True)
+    generate(output_dir, inputs)
+    print(f"CC files generated in {output_dir}")
 
 def generate_file(out_fname, array_name, array_type, array_contents, size):
   """Write an array of values to a CC or header file."""
