@@ -257,6 +257,7 @@ def export_vela(
     --config {config_path} \
     --accelerator-config {accelerator_config} \
     --system-config {system_config} \
+    --optimise Size \
     --memory-mode {memory_mode} \
     --output-dir {osp.dirname(tflite_path)}/ \
     {tflite_path}"
