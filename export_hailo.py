@@ -3,13 +3,19 @@ import numpy as np
 from hailo_sdk_client import ClientRunner
 from hailo_sdk_client.exposed_definitions import CalibrationDataType
 
+calibration_size = 1024
+
 
 def get_model_script_lines(model: str):
     lines = [
-        "model_optimization_config(calibration, batch_size=1, calibset_size=1024)\n",
+        f"model_optimization_config(calibration, batch_size=1, calibset_size={calibration_size})\n",
         "model_optimization_flavor(optimization_level=2, compression_level=1)\n",
     ]
     if "efficientvit_b0-mpii-256x256-light" in model:
+        # Fails with: Quantization failed in layer model/ew_mult1 due to unsupported required slope.
+        # Desired shift is 40.0, but op has only 8 data bits. This error raises when the data or weight range
+        # are not balanced. Mostly happens when using random calibration-set/weights, the calibration-set is
+        # not normalized properly or batch-normalization was not used during training.
         lines.extend(
             [
                 #'quantization_param([model/matmul1], force_range_in=[0.000, 100.0], force_range_index=0)\n',
@@ -17,6 +23,10 @@ def get_model_script_lines(model: str):
             ]
         )
     if "efficientvit_b1-mpii-256x256-light" in model:
+        # Fails with: Quantization failed in layer model/ew_mult1 due to unsupported required slope.
+        # Desired shift is 41.0, but op has only 8 data bits. This error raises when the data or weight range
+        # are not balanced. Mostly happens when using random calibration-set/weights, the calibration-set is
+        # not normalized properly or batch-normalization was not used during training.
         lines.extend(
             [
                 #'quantization_param([model/matmul1], force_range_in=[0.000, 15.264], force_range_index=0)\n',
@@ -24,10 +34,17 @@ def get_model_script_lines(model: str):
             ]
         )
     if "efficientvit_b2-mpii-256x256-light" in model:
+        # Fails with: layer model/matmul3 does not support shift delta. To overcome this issue you should force
+        # larger range at the inputs of the layer using command
+        # quantization_param([layer_name], force_range_in=[range_min, range_max], force_range_index=index)
+        # current range of input 0 is [0.000, 35.384] and input 1 is [-3064.808, 2911.036].
+        # You should increase the multiplication of these ranges by a factor of 1.636, e.g. you can apply factor of sqrt(1.636) to both inputs:
+        # quantization_param([model/matmul3], force_range_in=[0.000, 45.258], force_range_index=0)
+        # quantization_param([model/matmul3], force_range_in=[-3920.080, 3723.396], force_range_index=1)
         lines.extend(
             [
                 #'quantization_param([model/matmul3], force_range_in=[0.000, 100.0], force_range_index=0)\n',
-                #'quantization_param([model/matmul3], force_range_in=[-3592.442, 3708.924], force_range_index=1)\n',
+                "quantization_param([model/matmul3], force_range_in=[-4500.000, 4500.000], force_range_index=1)\n",
             ]
         )
 
@@ -78,7 +95,9 @@ if __name__ == "__main__":
     calibration_data_nchw = np.load(calibration_data_npy)
     calibration_data_nhwc = calibration_data_nchw.transpose(0, 2, 3, 1)
 
-    mean, std = calibration_data_nchw.mean(axis=(0, 2, 3)), calibration_data_nchw.std(axis=(0, 2, 3))
+    mean, std = calibration_data_nchw.mean(axis=(0, 2, 3)), calibration_data_nchw.std(
+        axis=(0, 2, 3)
+    )
     print(f"Mean: {mean}, Std: {std}")
 
     if calibration_data_nhwc.shape[0] < 1024:
@@ -93,33 +112,16 @@ if __name__ == "__main__":
             if onnx_path.endswith("-light_v17.onnx")
         ]
     )
-    tflite_model_paths = sorted(
-        [
-            os.path.join(models_dir, tflite_path)
-            for tflite_path in os.listdir(models_dir)
-            if tflite_path.endswith("-light_onnx2tf.tflite")
-        ]
-    )
 
     print(f"Found {len(onnx_model_paths)} ONNX models in {models_dir}")
-    print(f"Found {len(tflite_model_paths)} TFLITE models in {models_dir}")
 
     for onnx_model_path in onnx_model_paths:
         print(f"Exporting {onnx_model_path}")
         try:
-            export_hailo(onnx_model_path, calibration_data_nhwc, skip=True)
+            export_hailo(
+                onnx_model_path, calibration_data_nhwc[:calibration_size], skip=True
+            )
         except Exception as e:
             print(f"Error exporting {onnx_model_path}: {e}")
             continue
         print(f"Exported {onnx_model_path}")
-    
-    for tflite_model_path in tflite_model_paths:
-        print(f"Exporting {tflite_model_path}")
-        try:
-            export_hailo(tflite_model_path, calibration_data_nhwc, skip=True)
-        except Exception as e:
-            print(f"Error exporting {tflite_model_path}: {e}")
-            continue
-        print(f"Exported {tflite_model_path}")
-
-

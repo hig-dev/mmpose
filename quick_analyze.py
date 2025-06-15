@@ -2,6 +2,7 @@ import argparse
 import os
 import os.path as osp
 import json
+import time
 
 from mmengine.config import Config
 from mmengine.runner import Runner
@@ -45,6 +46,18 @@ def analyze(config_file: str):
     peak_memory_mb = peak_memory_bytes / (1024**2)
     print(f"Peak CUDA memory: {peak_memory_mb:.2f} MB")
 
+    # Run and time 100 iterations to get a more stable peak memory usage
+    iterations = 100
+    dummy_input = torch.randn(input_shape).cuda()
+    time_begin = time.time()
+    for _ in range(iterations):
+        with torch.no_grad():
+            model(dummy_input)
+    time_end = time.time()
+    elapsed_time = time_end - time_begin
+    elapsed_time_ms = elapsed_time * 1000
+    latency_ms = elapsed_time_ms / iterations
+
     # analyse model complexity
     input_shape = (3, cfg.codec.input_size[0], cfg.codec.input_size[1])
     complexity_info = analyse_complexity(model, input_shape)
@@ -52,6 +65,8 @@ def analyze(config_file: str):
     analyze_result = {
         "model_name": exp_name,
         "peak_memory_mb": peak_memory_mb,
+        "iterations": iterations,
+        "avg_latency_ms": latency_ms,
     }
     analyze_result.update(complexity_info)
 
