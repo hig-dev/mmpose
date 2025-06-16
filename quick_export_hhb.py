@@ -6,6 +6,7 @@ import shutil
 calibration_size = 256
 
 # EXPORT NOTES:
+# hhb version: 2.11.4
 # Export of efficientvit models fails with:
 # Unspported ops ['nn.batch_matmul'] in target th1520
 # Export of DeiT models fail with:

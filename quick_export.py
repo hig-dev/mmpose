@@ -123,15 +123,6 @@ def export(config_file: str, export_data: bool = False):
         quantize=True,
     )
 
-    # Export Vela model for Ethos-U55
-    export_vela(tflite_aiedgetorch_quantized_output_path)
-    export_vela(tflite_onnx2tf_quantized_output_path)
-
-    # Export model for Coral Edge TPU
-    export_edgetpu(tflite_aiedgetorch_quantized_output_path)
-    export_edgetpu(tflite_onnx2tf_quantized_output_path)
-
-
 def prepare_model_for_export(model):
     model.forward = model._forward
     model = revert_sync_batchnorm(model)
@@ -244,38 +235,6 @@ def export_tflite_onnx2tf(
         f.write(tflite_model)
 
     print(f"TFLite model exported to {output_path}")
-
-
-def export_vela(
-    tflite_path,
-    config_path="himax_vela.ini",
-    accelerator_config="ethos-u55-64",
-    system_config="My_Sys_Cfg",
-    memory_mode="My_Mem_Mode_Parent",
-):
-    cmd = f"vela \
-    --config {config_path} \
-    --accelerator-config {accelerator_config} \
-    --system-config {system_config} \
-    --optimise Size \
-    --memory-mode {memory_mode} \
-    --output-dir {osp.dirname(tflite_path)}/ \
-    {tflite_path}"
-    state = os.system(cmd)
-    if not state:
-        print("Export of vela model succeeded")
-    else:
-        print("Export of vela model failed")
-    
-def export_edgetpu(tflite_path):
-    cmd = f"edgetpu_compiler \
-    --out_dir {osp.dirname(tflite_path)}/ \
-    {tflite_path}"
-    state = os.system(cmd)
-    if not state:
-        print("Export of edgetpu model succeeded")
-    else:
-        print("Export of edgetpu model failed")
 
 def export_calibration_data(dataloader: DataLoader, data_preprocessor, output_dir: str, limit: int = 1000, save: bool = True):
     os.makedirs(output_dir, exist_ok=True)
