@@ -22,7 +22,7 @@ def export_hhb(
     hw_arch: str = "th1520",
 ):
     base_model_name = os.path.basename(model_path).replace(".onnx", "").replace(".tflite", "")
-    output_path = model_path.replace(".tflite", f"{quantization_scheme}_hbb").replace(".onnx", f"{quantization_scheme}_hbb")
+    output_path = model_path.replace(".tflite", f"{quantization_scheme}_hhb").replace(".onnx", f"{quantization_scheme}_hhb")
     if skip and os.path.exists(output_path):
         print(f"File {output_path} already exists, skipping export.")
         return
@@ -51,7 +51,7 @@ def export_hhb(
     # Now zip the output directory
     output_zip_path = os.path.join(
         os.path.dirname(model_path),
-        f"{base_model_name}_{quantization_scheme}_hbb"
+        f"{base_model_name}_{quantization_scheme}_hhb"
     )
     shutil.make_archive(output_zip_path, 'zip', output_path)
     
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         [
             os.path.join(models_dir, onnx_path)
             for onnx_path in os.listdir(models_dir)
-            if onnx_path.endswith("-light_v17.onnx") and "mobileone" in onnx_path
+            if onnx_path.endswith("-light_v17.onnx")
         ]
     )
 

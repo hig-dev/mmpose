@@ -22,6 +22,7 @@ def export_vela(
     --optimise Size \
     --memory-mode {memory_mode} \
     --output-dir {osp.dirname(tflite_path)}/ \
+    --recursion-limit 10000 \
     {tflite_path}"
     state = os.system(cmd)
     if not state:
@@ -37,7 +38,7 @@ if __name__ == "__main__":
         [
             osp.join(models_dir, tf_path)
             for tf_path in os.listdir(models_dir)
-            if tf_path.endswith("onnx2tf_int8.tflite") and "DeitTiny" in tf_path
+            if tf_path.endswith("onnx2tf_int8.tflite")
         ]
     )
 

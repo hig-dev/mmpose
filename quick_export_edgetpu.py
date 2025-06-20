@@ -34,7 +34,7 @@ if __name__ == "__main__":
         [
             osp.join(models_dir, tf_path)
             for tf_path in os.listdir(models_dir)
-            if tf_path.endswith("onnx2tf_int8.tflite") and "DeitTiny" in tf_path
+            if tf_path.endswith("onnx2tf_int8.tflite")
         ]
     )
 
