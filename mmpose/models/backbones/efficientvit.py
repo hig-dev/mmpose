@@ -22,13 +22,16 @@ REGISTERED_NORM_DICT: dict[str, type] = {
     "ln": nn.LayerNorm,
 }
 
+
 def list_sum(x: list) -> Any:
     return x[0] if len(x) == 1 else x[0] + list_sum(x[1:])
+
 
 def val2list(x: list | tuple | Any, repeat_time=1) -> list:
     if isinstance(x, (list, tuple)):
         return list(x)
     return [x for _ in range(repeat_time)]
+
 
 def val2tuple(x: list | tuple | Any, min_len: int = 1, idx_repeat: int = -1) -> tuple:
     x = val2list(x)
@@ -39,6 +42,7 @@ def val2tuple(x: list | tuple | Any, min_len: int = 1, idx_repeat: int = -1) -> 
 
     return tuple(x)
 
+
 def build_act(name: str, **kwargs) -> Optional[nn.Module]:
     if name in REGISTERED_ACT_DICT:
         act_cls = REGISTERED_ACT_DICT[name]
@@ -46,6 +50,7 @@ def build_act(name: str, **kwargs) -> Optional[nn.Module]:
         return act_cls(**args)
     else:
         return None
+
 
 def build_norm(name="bn2d", num_features=None, **kwargs) -> Optional[nn.Module]:
     if name in ["ln", "ln2d", "trms2d"]:
@@ -58,6 +63,7 @@ def build_norm(name="bn2d", num_features=None, **kwargs) -> Optional[nn.Module]:
         return norm_cls(**args)
     else:
         return None
+
 
 def get_same_padding(kernel_size: int | tuple[int, ...]) -> int | tuple[int, ...]:
     if isinstance(kernel_size, tuple):
@@ -86,7 +92,8 @@ def resize(
         return F.interpolate(x, size=size, scale_factor=scale_factor, mode=mode)
     else:
         raise NotImplementedError(f"resize(mode={mode}) not implemented.")
-    
+
+
 def build_kwargs_from_config(config: dict, target_func: Callable) -> dict[str, Any]:
     valid_keys = list(signature(target_func).parameters)
     kwargs = {}
@@ -95,28 +102,30 @@ def build_kwargs_from_config(config: dict, target_func: Callable) -> dict[str, A
             kwargs[key] = config[key]
     return kwargs
 
+
 EFFICIENT_VIT_ARCHS = {
-    'b0': {
-        'width_list': [8, 16, 32, 64, 128],
-        'depth_list': [1, 2, 2, 2, 2],
-        'dim': 16,
+    "b0": {
+        "width_list": [8, 16, 32, 64, 128],
+        "depth_list": [1, 2, 2, 2, 2],
+        "dim": 16,
     },
-    'b1': {
-        'width_list': [16, 32, 64, 128, 256],
-        'depth_list': [1, 2, 3, 3, 4],
-        'dim': 16,
+    "b1": {
+        "width_list": [16, 32, 64, 128, 256],
+        "depth_list": [1, 2, 3, 3, 4],
+        "dim": 16,
     },
-    'b2': {
-        'width_list': [24, 48, 96, 192, 384],
-        'depth_list': [1, 3, 4, 4, 6],
-        'dim': 32,
+    "b2": {
+        "width_list": [24, 48, 96, 192, 384],
+        "depth_list": [1, 3, 4, 4, 6],
+        "dim": 32,
     },
-    'b3': {
-        'width_list': [32, 64, 128, 256, 512],
-        'depth_list': [1, 4, 6, 6, 9],
-        'dim': 32,
-    }
+    "b3": {
+        "width_list": [32, 64, 128, 256, 512],
+        "depth_list": [1, 4, 6, 6, 9],
+        "dim": 32,
+    },
 }
+
 
 @MODELS.register_module()
 class EfficientViT(BaseBackbone):
@@ -130,12 +139,21 @@ class EfficientViT(BaseBackbone):
         expand_ratio=4,
         norm="bn2d",
         act_func="hswish",
-        out_indices=(0, 1, 2, 3,),
+        out_indices=(
+            0,
+            1,
+            2,
+            3,
+        ),
         init_cfg=None,
     ) -> None:
-        is_custom_arch = width_list is not None or depth_list is not None or dim is not None
+        is_custom_arch = (
+            width_list is not None or depth_list is not None or dim is not None
+        )
         if is_custom_arch and (width_list is None or depth_list is None or dim is None):
-            raise ValueError("width_list, depth_list and dim should be provided together.")
+            raise ValueError(
+                "width_list, depth_list and dim should be provided together."
+            )
         if not is_custom_arch and arch is None:
             raise ValueError("arch should be provided.")
         if not is_custom_arch and arch not in EFFICIENT_VIT_ARCHS:
@@ -260,8 +278,203 @@ class EfficientViT(BaseBackbone):
             x = stage(x)
             if i in self.out_indices:
                 outs.append(x)
-        
+
         return outs
+
+
+EFFICIENT_VIT_LARGE_ARCHS = {
+    "l0": {
+        "width_list": [32, 64, 128, 256, 512],
+        "depth_list": [1, 1, 1, 4, 4],
+    },
+    "l1": {
+        "width_list": [32, 64, 128, 256, 512],
+        "depth_list": [1, 1, 1, 6, 6],
+    },
+    "l2": {
+        "width_list": [32, 64, 128, 256, 512],
+        "depth_list": [1, 2, 2, 8, 8],
+    },
+    "l3": {
+        "width_list": [64, 128, 256, 512, 1024],
+        "depth_list": [1, 2, 2, 8, 8],
+    },
+}
+
+
+@MODELS.register_module()
+class EfficientViTLarge(BaseBackbone):
+    def __init__(
+        self,
+        arch: Optional[str] = "l0",
+        width_list: Optional[list[int]] = None,
+        depth_list: Optional[list[int]] = None,
+        block_list: Optional[list[str]] = None,
+        expand_list: Optional[list[float]] = None,
+        fewer_norm_list: Optional[list[bool]] = None,
+        in_channels=3,
+        qkv_dim=32,
+        norm="bn2d",
+        act_func="gelu",
+        out_indices=(
+            0,
+            1,
+            2,
+            3,
+        ),
+        init_cfg=None,
+    ) -> None:
+        is_custom_arch = width_list is not None or depth_list is not None
+        if is_custom_arch and (width_list is None or depth_list is None):
+            raise ValueError("width_list, depth_list should be provided together.")
+        if not is_custom_arch and arch is None:
+            raise ValueError("arch should be provided.")
+        if not is_custom_arch and arch not in EFFICIENT_VIT_LARGE_ARCHS:
+            raise ValueError(f"arch {arch} is not supported.")
+        if not is_custom_arch and arch in EFFICIENT_VIT_LARGE_ARCHS:
+            width_list = EFFICIENT_VIT_LARGE_ARCHS[arch]["width_list"]
+            depth_list = EFFICIENT_VIT_LARGE_ARCHS[arch]["depth_list"]
+        super().__init__(init_cfg=init_cfg)
+        self.out_indices = out_indices
+        block_list = (
+            ["res", "fmb", "fmb", "mb", "att"] if block_list is None else block_list
+        )
+        expand_list = [1, 4, 4, 4, 6] if expand_list is None else expand_list
+        fewer_norm_list = (
+            [False, False, False, True, True]
+            if fewer_norm_list is None
+            else fewer_norm_list
+        )
+
+        self.width_list = []
+        self.stages = []
+        # stage 0
+        stage0 = [
+            ConvLayer(
+                in_channels=in_channels,
+                out_channels=width_list[0],
+                stride=2,
+                norm=norm,
+                act_func=act_func,
+            )
+        ]
+        for _ in range(depth_list[0]):
+            block = self.build_local_block(
+                block=block_list[0],
+                in_channels=width_list[0],
+                out_channels=width_list[0],
+                stride=1,
+                expand_ratio=expand_list[0],
+                norm=norm,
+                act_func=act_func,
+                fewer_norm=fewer_norm_list[0],
+            )
+            stage0.append(ResidualBlock(block, IdentityLayer()))
+        in_channels = width_list[0]
+        self.stages.append(OpSequential(stage0))
+        self.width_list.append(in_channels)
+
+        for stage_id, (w, d) in enumerate(zip(width_list[1:], depth_list[1:]), start=1):
+            stage = []
+            block = self.build_local_block(
+                block=(
+                    "mb"
+                    if block_list[stage_id] not in ["mb", "fmb"]
+                    else block_list[stage_id]
+                ),
+                in_channels=in_channels,
+                out_channels=w,
+                stride=2,
+                expand_ratio=expand_list[stage_id] * 4,
+                norm=norm,
+                act_func=act_func,
+                fewer_norm=fewer_norm_list[stage_id],
+            )
+            stage.append(ResidualBlock(block, None))
+            in_channels = w
+
+            for _ in range(d):
+                if block_list[stage_id].startswith("att"):
+                    stage.append(
+                        EfficientViTBlock(
+                            in_channels=in_channels,
+                            dim=qkv_dim,
+                            expand_ratio=expand_list[stage_id],
+                            scales=(3,) if block_list[stage_id] == "att@3" else (5,),
+                            norm=norm,
+                            act_func=act_func,
+                        )
+                    )
+                else:
+                    block = self.build_local_block(
+                        block=block_list[stage_id],
+                        in_channels=in_channels,
+                        out_channels=in_channels,
+                        stride=1,
+                        expand_ratio=expand_list[stage_id],
+                        norm=norm,
+                        act_func=act_func,
+                        fewer_norm=fewer_norm_list[stage_id],
+                    )
+                    block = ResidualBlock(block, IdentityLayer())
+                    stage.append(block)
+            self.stages.append(OpSequential(stage))
+            self.width_list.append(in_channels)
+        self.stages = nn.ModuleList(self.stages)
+
+    @staticmethod
+    def build_local_block(
+        block: str,
+        in_channels: int,
+        out_channels: int,
+        stride: int,
+        expand_ratio: float,
+        norm: str,
+        act_func: str,
+        fewer_norm: bool = False,
+    ) -> nn.Module:
+        if block == "res":
+            block = ResBlock(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                stride=stride,
+                use_bias=(True, False) if fewer_norm else False,
+                norm=(None, norm) if fewer_norm else norm,
+                act_func=(act_func, None),
+            )
+        elif block == "fmb":
+            block = FusedMBConv(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                stride=stride,
+                expand_ratio=expand_ratio,
+                use_bias=(True, False) if fewer_norm else False,
+                norm=(None, norm) if fewer_norm else norm,
+                act_func=(act_func, None),
+            )
+        elif block == "mb":
+            block = MBConv(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                stride=stride,
+                expand_ratio=expand_ratio,
+                use_bias=(True, True, False) if fewer_norm else False,
+                norm=(None, None, norm) if fewer_norm else norm,
+                act_func=(act_func, act_func, None),
+            )
+        else:
+            raise ValueError(block)
+        return block
+    
+    def forward(self, x):
+        outs = []
+        for i, stage in enumerate(self.stages):
+            x = stage(x)
+            if i in self.out_indices:
+                outs.append(x)
+
+        return outs
+
 
 class ConvLayer(nn.Module):
     def __init__(
@@ -323,7 +536,9 @@ class UpSampleLayer(nn.Module):
 
     @torch.autocast(device_type="cuda", enabled=False)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if (self.size is not None and tuple(x.shape[-2:]) == self.size) or self.factor == 1:
+        if (
+            self.size is not None and tuple(x.shape[-2:]) == self.size
+        ) or self.factor == 1:
             return x
         if x.dtype in [torch.float16, torch.bfloat16]:
             x = x.float()
@@ -556,7 +771,9 @@ class MBConv(nn.Module):
         use_bias = val2tuple(use_bias, 3)
         norm = val2tuple(norm, 3)
         act_func = val2tuple(act_func, 3)
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.inverted_conv = ConvLayer(
             in_channels,
@@ -612,7 +829,9 @@ class FusedMBConv(nn.Module):
         norm = val2tuple(norm, 2)
         act_func = val2tuple(act_func, 2)
 
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.spatial_conv = ConvLayer(
             in_channels,
@@ -657,7 +876,9 @@ class GLUMBConv(nn.Module):
         norm = val2tuple(norm, 3)
         act_func = val2tuple(act_func, 3)
 
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.glu_act = build_act(act_func[1], inplace=False)
         self.inverted_conv = ConvLayer(
@@ -717,7 +938,9 @@ class ResBlock(nn.Module):
         norm = val2tuple(norm, 2)
         act_func = val2tuple(act_func, 2)
 
-        mid_channels = round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        mid_channels = (
+            round(in_channels * expand_ratio) if mid_channels is None else mid_channels
+        )
 
         self.conv1 = ConvLayer(
             in_channels,
@@ -791,7 +1014,13 @@ class LiteMLA(nn.Module):
                         groups=3 * total_dim,
                         bias=use_bias[0],
                     ),
-                    nn.Conv2d(3 * total_dim, 3 * total_dim, 1, groups=3 * heads, bias=use_bias[0]),
+                    nn.Conv2d(
+                        3 * total_dim,
+                        3 * total_dim,
+                        1,
+                        groups=3 * heads,
+                        bias=use_bias[0],
+                    ),
                 )
                 for scale in scales
             ]
@@ -872,7 +1101,9 @@ class LiteMLA(nn.Module):
         original_dtype = att_map.dtype
         if original_dtype in [torch.float16, torch.bfloat16]:
             att_map = att_map.float()
-        att_map = att_map / (torch.sum(att_map, dim=2, keepdim=True) + self.eps)  # b h n n
+        att_map = att_map / (
+            torch.sum(att_map, dim=2, keepdim=True) + self.eps
+        )  # b h n n
         att_map = att_map.to(original_dtype)
         out = torch.matmul(v, att_map)  # b h d n
 
@@ -1018,7 +1249,9 @@ class DAGBlock(nn.Module):
         self.output_ops = nn.ModuleList(list(outputs.values()))
 
     def forward(self, feature_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        feat = [op(feature_dict[key]) for key, op in zip(self.input_keys, self.input_ops)]
+        feat = [
+            op(feature_dict[key]) for key, op in zip(self.input_keys, self.input_ops)
+        ]
         if self.merge == "add":
             feat = list_sum(feat)
         elif self.merge == "cat":
