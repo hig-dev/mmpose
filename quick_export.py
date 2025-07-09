@@ -8,6 +8,9 @@ import json
 import numpy as np
 from mmcv.cnn.bricks.drop import DropPath
 import torch
+from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
+from executorch.exir import to_edge_transform_and_lower
+from torch.export import export as export_torch
 import onnx
 import ai_edge_torch
 import tensorflow as tf
@@ -84,6 +87,10 @@ def export(config_file: str, export_data: bool = False):
             sample_input.transpose(0, 2, 3, 1), sample_input_path_nhwc
         )
         return
+
+    # Export to ExecuTorch
+    executorch_output_path = osp.join(exported_models_dir, f"{exp_name}.pte")
+    export_executorch(model, sample_input, executorch_output_path)
 
     # Export to ONNX
     onnx_output_path = osp.join(exported_models_dir, f"{exp_name}.onnx")
@@ -166,6 +173,15 @@ def export_onnx(model, sample_input: np.ndarray, output_path, onnx_opset=20):
     onnx.checker.check_model(onnx_model)
     print(f"ONNX model exported to {output_path}")
 
+def export_executorch(model, sample_input: np.ndarray, output_path):
+    exported_program = export_torch(model, (torch.from_numpy(sample_input),))
+    executorch_program = to_edge_transform_and_lower(
+        exported_program,
+        partitioner = [XnnpackPartitioner()]
+    ).to_executorch()
+
+    with open(output_path, "wb") as file:
+        file.write(executorch_program.buffer)
 
 def export_tflite_ai_edge_torch(model, calibration_data, output_path, quantize=False):
     sample_input = torch.from_numpy(calibration_data[0])
