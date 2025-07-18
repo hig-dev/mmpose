@@ -4,7 +4,6 @@
 import argparse
 import os.path as osp
 import os
-import json
 import numpy as np
 from mmcv.cnn.bricks.drop import DropPath
 import torch
@@ -25,7 +24,7 @@ from mmpose.structures.pose_data_sample import PoseDataSample
 device = "cpu"
 
 
-def export(config_file: str, export_data: bool = False):
+def export(config_file: str, export_calibration: bool = False):
     tf.config.set_visible_devices([], "GPU")
 
     # load config
@@ -55,7 +54,6 @@ def export(config_file: str, export_data: bool = False):
     runner.load_or_resume()
 
     train_dataloader: DataLoader = runner.train_dataloader
-    test_dataloader: DataLoader = runner.test_dataloader
 
     # get the first batch of data for calibration
     calibration_data = export_calibration_data(
@@ -63,7 +61,7 @@ def export(config_file: str, export_data: bool = False):
         runner.model.data_preprocessor,
         test_data_output_dir,
         limit=1000,
-        save=export_data,
+        save=export_calibration,
     )
 
     sample_input = calibration_data[0]
@@ -73,20 +71,6 @@ def export(config_file: str, export_data: bool = False):
     model = runner.model
     model = prepare_model_for_export(model)
     model = model.to(device)
-
-    # Export test data
-    if export_data:
-        export_test_data(
-            test_dataloader, runner.model.data_preprocessor, test_data_output_dir
-        )
-        sample_input_path_nchw = osp.join(test_data_output_dir, f"sample_input_nchw.npy")
-        sample_input_path_nhwc = osp.join(test_data_output_dir, f"sample_input_nhwc.npy")
-
-        export_sample_input(sample_input, sample_input_path_nchw)
-        export_sample_input(
-            sample_input.transpose(0, 2, 3, 1), sample_input_path_nhwc
-        )
-        return
 
     # Export to ExecuTorch
     executorch_output_path = osp.join(exported_models_dir, f"{exp_name}.pte")
@@ -146,18 +130,6 @@ def prepare_model_for_export(model):
 
     model.eval()
     return model
-
-
-def export_sample_input(sample_input: np.ndarray, output_path: str):
-    if len(sample_input.shape) != 4:
-        raise ValueError(f"Sample input should be 4D, but got {sample_input.shape}")
-    if sample_input.dtype != np.float32:
-        raise ValueError(
-            f"Sample input should be float32, but got {sample_input.dtype}"
-        )
-
-    np.save(output_path, sample_input)
-
 
 def export_onnx(model, sample_input: np.ndarray, output_path, onnx_opset=20):
     torch.onnx.export(
@@ -267,64 +239,11 @@ def export_calibration_data(dataloader: DataLoader, data_preprocessor, output_di
         np.save(osp.join(output_dir, "calibration_inputs.npy"), model_inputs_np)
     return model_inputs_np
 
-def export_test_data(dataloader: DataLoader, data_preprocessor, output_dir: str):
-    os.makedirs(output_dir, exist_ok=True)
-    model_inputs = []
-    gt_keypoints = []
-    gt_keypoints_visible_mask = []
-    gt_head_sizes = []
-    meta_infos = []
-    for data in dataloader:
-        preprocessed_data = data_preprocessor(data)
-        model_input = preprocessed_data["inputs"]
-        data_sample: PoseDataSample = preprocessed_data["data_samples"][0]
-        meta_info = data_sample.metainfo
-        gt_instance = data_sample.gt_instances[0]
-        gt_keypoints_visible = gt_instance.keypoints_visible.astype(bool)
-        if gt_keypoints_visible.ndim == 3:
-            gt_keypoints_visible = gt_keypoints_visible[:, :, 0]
-        gt_keypoints_visible = gt_keypoints_visible.reshape(1, -1)
-        head_size_ = gt_instance["head_size"]
-        head_size = np.array([head_size_, head_size_]).reshape(-1, 2)
-
-        model_inputs.append(model_input.numpy())
-        gt_keypoints.append(gt_instance.keypoints)
-        gt_keypoints_visible_mask.append(gt_keypoints_visible)
-        gt_head_sizes.append(head_size)
-        meta_infos.append(meta_info)
-    model_inputs_np = np.concatenate(model_inputs, axis=0)
-    gt_keypoints_np = np.concatenate(gt_keypoints, axis=0)
-    gt_keypoints_visible_mask_np = np.concatenate(gt_keypoints_visible_mask, axis=0)
-    gt_head_sizes_np = np.concatenate(gt_head_sizes, axis=0)
-
-    np.save(osp.join(output_dir, "model_inputs.npy"), model_inputs_np)
-    np.save(osp.join(output_dir, "gt_keypoints.npy"), gt_keypoints_np)
-    np.save(
-        osp.join(output_dir, "gt_keypoints_visible_mask.npy"),
-        gt_keypoints_visible_mask_np,
-    )
-    np.save(osp.join(output_dir, "gt_head_sizes.npy"), gt_head_sizes_np)
-    with open(osp.join(output_dir, "meta_infos.json"), "w") as f:
-        json.dump(meta_infos, f, cls=NumpyEncoder)
-
-
-class NumpyEncoder(json.JSONEncoder):
-    """Special json encoder for numpy types"""
-
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return json.JSONEncoder.default(self, obj)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Export a model")
     parser.add_argument("config", help="train config file path")
-    parser.add_argument("--export-data", action="store_true", help="Export test data")
+    parser.add_argument("--export-calibration-data", action="store_true", help="Export calibration data")
 
     args = parser.parse_args()
-    export(args.config, args.export_data)
+    export(args.config, args.export_calibration_data)
