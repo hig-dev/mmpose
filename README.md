@@ -65,17 +65,31 @@ This fork of MMPose is used in the master thesis *Benchmarking Computer Vision T
 - Added HeatmapHeadLight
 - Added EfficientVit backend
 - Added the configs used in the master thesis
-- Added Python scripts for training and evaluation
+- Added Python scripts for training, evaluation, and export
 
 ### Configs used in the master thesis
 Configs are located at `configs/body_2d_keypoint/topdown_heatmap/mpii` and begin with `0-`.
 
 ### Added Python scripts
-- **quick_train.py**: Helper script for training
-- **quick_eval.py**: Helper script for evaluation
-- **quick_analyze.py**: Helper script for model complexity analysis and peak memory usage measurement
-- **quick_export.py**: Helper script for model conversion and export
-- **quick_util.py**: Helper script for utility functions
+
+| Script Name | Description |
+|-------------|-------------|
+| **quick_train.py** | Helper script for training |
+| **quick_eval.py** | Helper script for evaluating |
+| **quick_analyze.py** | Helper script for model complexity analysis and peak memory usage measurement |
+| **quick_export.py** | Helper script for model conversion and export to various formats |
+| **quick_export_edgetpu.py** | Export script specifically for Google Edge TPU devices |
+| **quick_export_hailo.py** | Export script for Hailo AI accelerator devices |
+| **quick_export_hhb.py** | Export script for HHB (Heterogeneous Honey Badger) compiler |
+| **quick_export_tidl.py** | Export script for Texas Instruments Deep Learning (TIDL) compiler |
+| **quick_export_tvm.py** | Export script for Apache TVM  |
+| **quick_export_vela.py** | Export script for Arm Ethos-U NPU using Vela compiler |
+| **quick_util.py** | Utility script with helper functions |
+| **export_test_data.py** | Script for exporting test data samples |
+
+### Related repos
+- **EdgeBench**: https://github.com/hig-dev/edgebench
+- **EdgeBench Models**: https://github.com/hig-dev/edgebench-models
 
 ## Introduction
 
